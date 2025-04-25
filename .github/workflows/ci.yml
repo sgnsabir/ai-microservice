@@ -1,6 +1,6 @@
 name: CI
 
-# Trigger on pushes and pull-requests to main (and release branches)
+# Run on pushes to main or any releases/* branch, and PRs against them
 on:
   push:
     branches:
@@ -9,97 +9,107 @@ on:
   pull_request:
     branches:
       - main
+      - 'releases/**'
 
 jobs:
-  build-and-test:
-    # run on both ubuntu and windows
+  lint-and-test:
+    name: Lint & Test (${{ matrix.os }} / Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         python-version: [3.9, 3.10, 3.11]
-      fail-fast: false
 
     steps:
-      - name: Check out source
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-
-      - name: Create virtual environment
-        run: |
-          python -m venv .venv
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            .\.venv\Scripts\Activate.ps1
-          else
-            source .venv/bin/activate
-          fi
+          cache: pip
 
       - name: Install dependencies
         run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            .\.venv\Scripts\Activate.ps1
-          else
-            source .venv/bin/activate
-          fi
-          pip install --upgrade pip wheel
+          python -m pip install --upgrade pip wheel
           pip install -r requirements.txt
 
-      - name: Lint with black, isort
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            .\.venv\Scripts\Activate.ps1
-          else
-            source .venv/bin/activate
-          fi
-          black --check .
-          isort --check-only .
+      - name: Lint with Black
+        run: black --check .
 
-      - name: Static analysis with flake8, mypy
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            .\.venv\Scripts\Activate.ps1
-          else
-            source .venv/bin/activate
-          fi
-          flake8 .
-          mypy --strict .
+      - name: Lint with isort
+        run: isort --check-only .
+
+      - name: Static analysis with Flake8
+        run: flake8 .
+
+      - name: Static type checking with MyPy
+        run: mypy --strict .
 
       - name: Run pytest with coverage
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            .\.venv\Scripts\Activate.ps1
-          else
-            source .venv/bin/activate
-          fi
-          pytest --cov=./ --cov-report=xml
+        run: pytest --maxfail=1 --disable-warnings --cov=./ --cov-report=xml
 
       - name: Upload coverage report
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: coverage-report-${{ matrix.os }}-py${{ matrix.python-version }}
+          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
           path: coverage.xml
 
-  # Optionally, a separate job to enforce pre-commit on all files
-  pre-commit:
+  build-docker-image:
+    name: Build Docker image
     runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU (for multi-arch support)
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (and verify) Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: ghcr.io/${{ github.repository }}/ai-microservice:latest
+
+  pre-commit:
+    name: Pre-commit checks
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
+
+      - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: 3.10
+          cache: pip
+
       - name: Install pre-commit
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
+          python -m pip install --upgrade pip
           pip install pre-commit
-      - name: Run pre-commit on all files
-        run: |
-          source .venv/bin/activate
-          pre-commit run --all-files
+
+      - name: Run all pre-commit hooks
+        run: pre-commit run --all-files
