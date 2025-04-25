@@ -1,0 +1,105 @@
+name: CI
+
+# Trigger on pushes and pull-requests to main (and release branches)
+on:
+  push:
+    branches:
+      - main
+      - 'releases/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    # run on both ubuntu and windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: [3.9, 3.10, 3.11]
+      fail-fast: false
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Create virtual environment
+        run: |
+          python -m venv .venv
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            .\.venv\Scripts\Activate.ps1
+          else
+            source .venv/bin/activate
+          fi
+
+      - name: Install dependencies
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            .\.venv\Scripts\Activate.ps1
+          else
+            source .venv/bin/activate
+          fi
+          pip install --upgrade pip wheel
+          pip install -r requirements.txt
+
+      - name: Lint with black, isort
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            .\.venv\Scripts\Activate.ps1
+          else
+            source .venv/bin/activate
+          fi
+          black --check .
+          isort --check-only .
+
+      - name: Static analysis with flake8, mypy
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            .\.venv\Scripts\Activate.ps1
+          else
+            source .venv/bin/activate
+          fi
+          flake8 .
+          mypy --strict .
+
+      - name: Run pytest with coverage
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            .\.venv\Scripts\Activate.ps1
+          else
+            source .venv/bin/activate
+          fi
+          pytest --cov=./ --cov-report=xml
+
+      - name: Upload coverage report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: coverage.xml
+
+  # Optionally, a separate job to enforce pre-commit on all files
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.10
+      - name: Install pre-commit
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install pre-commit
+      - name: Run pre-commit on all files
+        run: |
+          source .venv/bin/activate
+          pre-commit run --all-files

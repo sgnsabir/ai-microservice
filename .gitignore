@@ -1,0 +1,94 @@
+# ----------------------------
+# Virtual Environments
+# ----------------------------
+.venv/
+venv/
+
+# ----------------------------
+# Python Bytecode & Caches
+# ----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# ----------------------------
+# C Extensions
+# ----------------------------
+*.so
+
+# ----------------------------
+# Distribution / Packaging
+# ----------------------------
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ----------------------------
+# IDE & Editor Folders
+# ----------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ----------------------------
+# Environment Variables
+# ----------------------------
+.env
+.env.*
+
+# ----------------------------
+# Testing & Coverage
+# ----------------------------
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+
+# ----------------------------
+# Jupyter Notebooks
+# ----------------------------
+.ipynb_checkpoints/
+
+# ----------------------------
+# Data Snapshots & Features
+# ----------------------------
+data/snapshots/
+data/features/
+
+# ----------------------------
+# MLflow Tracking & Models
+# ----------------------------
+mlruns/
+MODELS/
+
+# ----------------------------
+# Logs
+# ----------------------------
+*.log
+
+# ----------------------------
+# Docker Overrides
+# ----------------------------
+docker-compose.override.yml
+
+# ----------------------------
+# Operating System Files
+# ----------------------------
+.DS_Store
+Thumbs.db
